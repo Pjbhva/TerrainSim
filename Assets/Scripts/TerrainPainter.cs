@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class TerrainPainter : MonoBehaviour {
 
-    private World world;
+    private World2 world;
 
     Terrain terrain;
     TerrainData terrainData;
@@ -12,7 +12,7 @@ public class TerrainPainter : MonoBehaviour {
     // Use this for initialization
     void Start () {
         GameObject theWorld = GameObject.Find("World");
-        world = theWorld.GetComponent<World>();
+        world = theWorld.GetComponent<World2>();
 
         terrain = GetComponent<Terrain>();
         terrainData = terrain.terrainData;

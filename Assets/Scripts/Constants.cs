@@ -33,4 +33,6 @@ public class Constants : MonoBehaviour {
     public static float riverDensity = 0.00000762939453125f;
     //The minimum altitude required to spawn a water source
     public static float minAltitudeSource = 0.8f;
+    //The delta of water to fill at every step for simulating a river at river generation
+    public static float deltaRiverGeneration = 0.001f;
 }
