@@ -231,56 +231,60 @@ public class World : MonoBehaviour {
 
     void generateFreshWater()
     {
-        int riverNumber = (int) (Constants.riverDensity * width * depth);
-        for(int iRiver=0; iRiver<riverNumber; iRiver++)
+        int riverNumber = (int)(Constants.riverDensity * width * depth);
+        for (int iRiver = 0; iRiver < riverNumber; iRiver++)
         {
-            //Generate the coordenates of the source of the river
+            //Initialize a matrix for water heights
+            float[,] filledWater = new float[width, depth];
+            for (int i = 0; i < width; i++)
+                for (int j = 0; j < depth; j++)
+                    filledWater[i, j] = 0f;
+
+            //Generate the coordinates of the source of the river
             int xSource, ySource;
             do
             {
                 xSource = UnityEngine.Random.Range(0, width);
                 ySource = UnityEngine.Random.Range(0, depth);
-            } while(height[xSource, ySource] < Constants.minAltitudeSource);
+            } while (height[xSource, ySource] < Constants.minAltitudeSource);
             isWater[xSource, ySource] = true;
             freshWater[xSource, ySource] = true;
+
             int xCurrent = xSource, yCurrent = ySource;
             int direction;
-            //bool test = true;
-            while(height[xCurrent, yCurrent] > seaLevel /*&& test*/
-                && 0<xCurrent && xCurrent < width-1
-                && 0 < yCurrent && yCurrent < depth - 1)
+            bool finalStep = false;
+            int nstep = 0;
+            while (!finalStep)
             {
-                direction = findLowestHeight(xCurrent, yCurrent);
-                if (direction == 0)
-                    xCurrent++;
-                if (direction == 1)
-                    xCurrent--;
-                if (direction == 2)
-                    yCurrent++;
-                if (direction == 3)
-                    yCurrent--;
-                if(direction == -1)
-                {
-                    /*int[] escape = buildLake(xCurrent, yCurrent);
-                    Debug.LogFormat("The escape is: {0}, {1}, searching from: {2}, {3}", escape[0], escape[1], xCurrent, yCurrent);
-                    if (escape[0] != -1)
-                    {
-                        xCurrent = escape[0];
-                        yCurrent = escape[1];
-                    }
-                    if (escape[0] == -1) test = false;*/
-                    int newDirection = UnityEngine.Random.Range(0, 3);
-                    if (newDirection == 0)
-                        xCurrent++;
-                    if (newDirection == 1)
-                        xCurrent--;
-                    if (newDirection == 2)
-                        yCurrent++;
-                    if (newDirection == 3)
-                        yCurrent--;
-                }
-                isWater[xCurrent, yCurrent] = true;
-                freshWater[xCurrent, yCurrent] = true;
+                nstep++;
+                filledWater[xSource, ySource] += Constants.deltaRiverGeneration;
+                for (int i = 0; i < width; i++)
+                    for (int j = 0; j < depth; j++)
+                        if (filledWater[i, j] > 0f)
+                        {
+                            direction = findFlowDirection(filledWater, i, j);
+                            if (direction != -1)
+                            {
+                                xCurrent = i; yCurrent = j;
+                                if (direction == 0)
+                                    xCurrent++;
+                                if (direction == 1)
+                                    xCurrent--;
+                                if (direction == 2)
+                                    yCurrent++;
+                                if (direction == 3)
+                                    yCurrent--;
+                                if (!isWater[xCurrent, yCurrent]) isWater[xCurrent, yCurrent] = true;
+                                if (!freshWater[xCurrent, yCurrent]) freshWater[xCurrent, yCurrent] = true;
+                                filledWater[xCurrent, yCurrent] += Constants.deltaRiverGeneration;
+                                filledWater[i, j] -= Constants.deltaRiverGeneration;
+
+                                if (height[xCurrent, yCurrent] < seaLevel)
+                                    finalStep = true;
+                            }
+                            //TODO: DEBUG
+                            if (nstep >= Constants.maxIterationsRiverGeneration) finalStep = true;
+                        }
             }
         }
     }
@@ -339,307 +343,58 @@ public class World : MonoBehaviour {
         return flag;
     }
 
-    /*int[] buildLake(int x, int y)
+    //Finds which tile adjacent to some (x,y) tile has lowest height including its water height.
+    //Returns:
+    //-1 if no adjacent tile has lower height
+    //0 if (x+1,y) has lowest height
+    //1 if (x-1,y) has lowest height
+    //2 if (x, y+1) has lowest height
+    //3 if (x, y-1) has lowest height
+    int findFlowDirection(float[,] filledWater, int x, int y)
     {
-        Debug.LogFormat("Entering buildLake: {0}, {1}", x,y);
-        int direction = findLowestHeight(x, y);
-        int[,] escapeAll = new int[2, 4];
-        int[] escape = { -1, -1 };
-        for(int i = 0; i<4; i++)
-        {
-            escapeAll[0, i] = -1;
-            escapeAll[1, i] = -1;
-        }
-        if(direction == -1)
-        {
-            freshWater[x, y] = true;
-            isWater[x, y] = true;
-            if (x < width - 1 && isWater[x + 1, y] == false)
-                escape = buildLake(x + 1, y);
-            escapeAll[0, 0] = escape[0];
-            escapeAll[1, 0] = escape[1];
-            if (x > 0 && isWater[x - 1, y] == false)
-                escape = buildLake(x - 1, y);
-            escapeAll[0, 1] = escape[0];
-            escapeAll[1, 1] = escape[1];
-            if (y < depth - 1 && isWater[x, y+1] == false)
-                escape = buildLake(x, y+1);
-            escapeAll[0, 2] = escape[0];
-            escapeAll[1, 2] = escape[1];
-            if (y > 0 && isWater[x, y-1] == false)
-                escape = buildLake(x, y-1);
-            escapeAll[0, 3] = escape[0];
-            escapeAll[1, 3] = escape[1];
-        }
-        if(direction == 0)
-        {
-            if(isWater[x+1,y])
-            {
-                freshWater[x, y] = true;
-                isWater[x, y] = true;
-                if (x > 0 && isWater[x - 1, y] == false)
-                    escape = buildLake(x - 1, y);
-                escapeAll[0, 1] = escape[0];
-                escapeAll[1, 1] = escape[1];
-                if (y < depth - 1 && isWater[x, y + 1] == false)
-                    escape = buildLake(x, y + 1);
-                escapeAll[0, 2] = escape[0];
-                escapeAll[1, 2] = escape[1];
-                if (y > 0 && isWater[x, y - 1] == false)
-                    escape = buildLake(x, y - 1);
-                escapeAll[0, 3] = escape[0];
-                escapeAll[1, 3] = escape[1];
-            }
-            else
-            {
-                escapeAll[0, 0] = x + 1;
-                escapeAll[1, 0] = y;
-            }
-        }
-        if (direction == 1)
-        {
-            if (isWater[x - 1, y])
-            {
-                freshWater[x, y] = true;
-                isWater[x, y] = true;
-                if (x < width - 1 && isWater[x + 1, y] == false)
-                    escape = buildLake(x + 1, y);
-                escapeAll[0, 0] = escape[0];
-                escapeAll[1, 0] = escape[1];
-                if (y < depth - 1 && isWater[x, y + 1] == false)
-                    escape = buildLake(x, y + 1);
-                escapeAll[0, 2] = escape[0];
-                escapeAll[1, 2] = escape[1];
-                if (y > 0 && isWater[x, y - 1] == false)
-                    escape = buildLake(x, y - 1);
-                escapeAll[0, 3] = escape[0];
-                escapeAll[1, 3] = escape[1];
-            }
-            else
-            {
-                escapeAll[0, 1] = x - 1;
-                escapeAll[1, 1] = y;
-            }
-        }
-        if (direction == 2)
-        {
-            if (isWater[x, y+1])
-            {
-                freshWater[x, y] = true;
-                isWater[x, y] = true;
-                if (x < width - 1 && isWater[x + 1, y] == false)
-                    escape = buildLake(x + 1, y);
-                escapeAll[0, 0] = escape[0];
-                escapeAll[1, 0] = escape[1];
-                if (x > 0 && isWater[x - 1, y] == false)
-                    escape = buildLake(x - 1, y);
-                escapeAll[0, 1] = escape[0];
-                escapeAll[1, 1] = escape[1];
-                if (y > 0 && isWater[x, y - 1] == false)
-                    escape = buildLake(x, y - 1);
-                escapeAll[0, 3] = escape[0];
-                escapeAll[1, 3] = escape[1];
-            }
-            else
-            {
-                escapeAll[0, 2] = x;
-                escapeAll[1, 2] = y+1;
-            }
-        }
-        if (direction == 3)
-        {
-            if (isWater[x, y - 1])
-            {
-                freshWater[x, y] = true;
-                isWater[x, y] = true;
-                if (x < width - 1 && isWater[x + 1, y] == false)
-                    escape = buildLake(x + 1, y);
-                escapeAll[0, 0] = escape[0];
-                escapeAll[1, 0] = escape[1];
-                if (x > 0 && isWater[x - 1, y] == false)
-                    escape = buildLake(x - 1, y);
-                escapeAll[0, 1] = escape[0];
-                escapeAll[1, 1] = escape[1];
-                if (y < depth - 1 && isWater[x, y + 1] == false)
-                    escape = buildLake(x, y + 1);
-                escapeAll[0, 2] = escape[0];
-                escapeAll[1, 2] = escape[1];
-            }
-            else
-            {
-                escapeAll[0, 3] = x;
-                escapeAll[1, 3] = y - 1;
-            }
-        }
-        float comparingHeight = 2f;
-        int minIndex = 0;
-        for(int i=0; i<4; i++)
-        {
-            if(escapeAll[0,i] != -1)
-            if(comparingHeight> height[escapeAll[0, i], escapeAll[1, i]])
-            {
-                comparingHeight = height[escapeAll[0, i], escapeAll[1, i]];
-                minIndex = i;
-            }
-        }
-        escape[0] = escapeAll[0, minIndex];
-        escape[1] = escapeAll[1, minIndex];
-        Debug.LogFormat("The escape is: {0}, {1}. Direction: {2}", escape[0], escape[1], direction);
-        return escape;
-    }*/
+        int flag;
 
-    /*int[] buildLake(int x, int y)
-    {
-        Debug.LogFormat("Entering buildLake: {0}, {1}", x, y);
-        //int direction = findLowestHeight(x, y);
-        int[,] escapeAll = new int[2, 4];
-        int[] escape = { -1, -1 };
-        for (int i = 0; i < 4; i++)
-        {
-            escapeAll[0, i] = -1;
-            escapeAll[1, i] = -1;
-        }
-        freshWater[x, y] = true;
-        isWater[x, y] = true;
-        if (x < width - 1 && isWater[x + 1, y] == false)
-            escape = buildLake(x + 1, y);
-        escapeAll[0, 0] = escape[0];
-        escapeAll[1, 0] = escape[1];
-        if (x > 0 && isWater[x - 1, y] == false)
-            escape = buildLake(x - 1, y);
-        escapeAll[0, 1] = escape[0];
-        escapeAll[1, 1] = escape[1];
-        if (y < depth - 1 && isWater[x, y + 1] == false)
-            escape = buildLake(x, y + 1);
-        escapeAll[0, 2] = escape[0];
-        escapeAll[1, 2] = escape[1];
-        if (y > 0 && isWater[x, y - 1] == false)
-            escape = buildLake(x, y - 1);
-        escapeAll[0, 3] = escape[0];
-        escapeAll[1, 3] = escape[1];
-        
-        float comparingHeight = 2f;
-        int minIndex = 0;
-        for (int i = 0; i < 4; i++)
-        {
-            if (escapeAll[0, i] != -1)
-                if (comparingHeight > height[escapeAll[0, i], escapeAll[1, i]])
-                {
-                    comparingHeight = height[escapeAll[0, i], escapeAll[1, i]];
-                    minIndex = i;
-                }
-        }
-        escape[0] = escapeAll[0, minIndex];
-        escape[1] = escapeAll[1, minIndex];
-        Debug.LogFormat("The escape is: {0}, {1}. Direction: {2}", escape[0], escape[1], direction);
-        return escape;
-    }*/
-
-    int[] buildLake(int x, int y)
-    {
-        int[] escape = { -1, -1 };
-        int[,] candidates = new int[width * depth, 2];
-        int candidatesSize = 0;
-        if(x<width - 1 )
-        {
-            candidates[candidatesSize, 0] = x + 1;
-            candidates[candidatesSize, 1] = y;
-            candidatesSize++;
-            freshWater[x + 1, y] = true;
-            isWater[x + 1, y] = true;
-        }
-        if (x>0)
-        {
-            candidates[candidatesSize, 0] = x - 1;
-            candidates[candidatesSize, 1] = y;
-            candidatesSize++;
-            freshWater[x - 1, y] = true;
-            isWater[x - 1, y] = true;
-        }
+        float heightN, heightS, heightE, heightW;
+        if (x < width - 1)
+            heightN = height[x + 1, y] + filledWater[x + 1, y];
+        else
+            heightN = 1f;
+        if (x > 0)
+            heightS = height[x - 1, y] + filledWater[x - 1, y];
+        else
+            heightS = 1f;
         if (y < depth - 1)
+            heightW = height[x, y + 1] + filledWater[x, y + 1];
+        else
+            heightW = 1f;
+        if (y > 0)
+            heightE = height[x, y - 1] + filledWater[x, y + 1];
+        else
+            heightE = 1f;
+
+        float comparingHeight = height[x, y] + filledWater[x, y];
+        flag = -1;
+        if (heightN < comparingHeight)
         {
-            candidates[candidatesSize, 0] = x;
-            candidates[candidatesSize, 1] = y+1;
-            candidatesSize++;
-            freshWater[x, y+1] = true;
-            isWater[x, y+1] = true;
+            comparingHeight = heightN;
+            flag = 0;
         }
-        if (y>0)
+        if (heightS < comparingHeight)
         {
-            candidates[candidatesSize, 0] = x;
-            candidates[candidatesSize, 1] = y-1;
-            candidatesSize++;
-            freshWater[x, y-1] = true;
-            isWater[x, y-1] = true;
+            comparingHeight = heightS;
+            flag = 1;
         }
-        int[,] nextCandidates = new int[width * depth, 2];
-        int nextCandidatesSize = 0;
-        float scapeHeight = 1f;
-        while(candidatesSize>0)
+        if (heightW < comparingHeight)
         {
-            for(int i=0; i<candidatesSize; i++)
-            {
-                if (candidates[i, 0] < width - 1 && freshWater[candidates[i, 0] + 1, candidates[i, 1]] == false)
-                {
-                    nextCandidates[nextCandidatesSize, 0] = candidates[i, 0] + 1;
-                    nextCandidates[nextCandidatesSize, 1] = candidates[i, 1];
-                    nextCandidatesSize++;
-                    freshWater[candidates[i, 0] + 1, candidates[i, 1]] = true;
-                    isWater[candidates[i, 0] + 1, candidates[i, 1]] = true;
-                    if(scapeHeight > height[candidates[i, 0] + 1, candidates[i, 1]])
-                    {
-                        scapeHeight = height[candidates[i, 0] + 1, candidates[i, 1]];
-                        escape[0] = candidates[i, 0] + 1;
-                        escape[1] = candidates[i, 1];
-                    }
-                }
-                if (candidates[i, 0] > 0 && freshWater[candidates[i, 0] - 1, candidates[i, 1]] == false)
-                {
-                    nextCandidates[nextCandidatesSize, 0] = candidates[i, 0] - 1;
-                    nextCandidates[nextCandidatesSize, 1] = candidates[i, 1];
-                    nextCandidatesSize++;
-                    freshWater[candidates[i, 0] - 1, candidates[i, 1]] = true;
-                    isWater[candidates[i, 0] - 1, candidates[i, 1]] = true;
-                    if (scapeHeight > height[candidates[i, 0] - 1, candidates[i, 1]])
-                    {
-                        scapeHeight = height[candidates[i, 0] - 1, candidates[i, 1]];
-                        escape[0] = candidates[i, 0] - 1;
-                        escape[1] = candidates[i, 1];
-                    }
-                }
-                if (candidates[i, 1] < depth - 1 && freshWater[candidates[i, 0], candidates[i, 1] + 1] == false)
-                {
-                    nextCandidates[nextCandidatesSize , 0] = candidates[i, 0];
-                    nextCandidates[nextCandidatesSize , 1] = candidates[i, 1] + 1;
-                    nextCandidatesSize++;
-                    freshWater[candidates[i, 0], candidates[i, 1] + 1] = true;
-                    isWater[candidates[i, 0], candidates[i, 1] + 1] = true;
-                    if (scapeHeight > height[candidates[i, 0], candidates[i, 1] + 1])
-                    {
-                        scapeHeight = height[candidates[i, 0], candidates[i, 1] + 1];
-                        escape[0] = candidates[i, 0];
-                        escape[1] = candidates[i, 1] + 1;
-                    }
-                }
-                if (candidates[i, 1] > 0 && freshWater[candidates[i, 0], candidates[i, 1]-1] == false)
-                {
-                    nextCandidates[nextCandidatesSize , 0] = candidates[i, 0];
-                    nextCandidates[nextCandidatesSize , 1] = candidates[i, 1] - 1;
-                    nextCandidatesSize++;
-                    freshWater[candidates[i, 0], candidates[i, 1] - 1] = true;
-                    isWater[candidates[i, 0], candidates[i, 1] - 1] = true;
-                    if (scapeHeight > height[candidates[i, 0], candidates[i, 1] - 1])
-                    {
-                        scapeHeight = height[candidates[i, 0], candidates[i, 1] - 1];
-                        escape[0] = candidates[i, 0];
-                        escape[1] = candidates[i, 1] - 1;
-                    }
-                }
-                candidates = nextCandidates;
-                candidatesSize = nextCandidatesSize;
-                nextCandidatesSize = 0;
-            }
+            comparingHeight = heightW;
+            flag = 2;
         }
-        return escape;
+        if (heightE < comparingHeight)
+        {
+            comparingHeight = heightE;
+            flag = 3;
+        }
+        return flag;
     }
+
 }
